@@ -1,5 +1,5 @@
 {
-  "name": "uncertainty",
+  "name": "uncertainty-types",
   "version": "1.0.0",
   "description": "A simple module that implements various important utility monads like Results",
   "main": "index.js",
