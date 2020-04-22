@@ -1,10 +1,16 @@
 {
   "name": "monets",
   "version": "1.0.0",
-  "description": "A simple module that implements various utility important monads like Optionals and Results",
+  "description": "A simple module that implements various important utility monads like Optionals and Results",
   "main": "index.js",
   "scripts": {
-    "tsc": "./node_modules/.bin/tsc"
+    "tsc": "./node_modules/.bin/tsc",
+    "test": "./node_modules/.bin/npx jest",
+    "test:watch": "npm run test -- --watch",
+    "build": "rm -rf ./dist && npm run tsc"
+  },
+  "jest": {
+    "testEnvironment": "node"
   },
   "keywords": [
     "Optionals in JavaScript",
@@ -15,6 +21,10 @@
   "author": "michaelolof",
   "license": "ISC",
   "devDependencies": {
+    "@types/jest": "^25.2.1",
+    "jest": "^25.4.0",
+    "npx": "^10.2.2",
+    "ts-jest": "^25.4.0",
     "typescript": "^3.8.3"
   }
 }

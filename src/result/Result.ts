@@ -1,14 +1,15 @@
-import { IResult, OkArgument, IMatcherOption } from "./IResult";
-
+import { IResult, OkArgument, IMatcherOption, ErrArgument } from "./IResult";
+import { Unknown, isUnknown, isKnown } from "../Unknown";
 
 type ResultType = "err" | "value";
+
 
 export class Result<Value, Err> implements IResult<Value, Err> {
   
   private readonly _isError :boolean = false;
   private readonly _isSuccess :boolean = false;
-  private err : Err | undefined = undefined;
-  private value : Value | undefined;
+  private err : Err | Unknown = new Unknown();
+  private value : Value | Unknown = new Unknown();
   private type :ResultType = "err";
 
   private constructor(val :Value | Err, type: ResultType) {
@@ -28,60 +29,57 @@ export class Result<Value, Err> implements IResult<Value, Err> {
 
   }
 
-  public static Err<TValue, Err>(err :Err) : Result<TValue, Err> {
+
+  static Err<TValue, Err>(err :Err) : Result<TValue, Err> {
     return new Result<TValue, Err>(err, "err")
   }
 
-  public static Ok<TValue, Err>(value: TValue) : Result<TValue, Err> {
+  static Ok<TValue, Err>(value: TValue) : Result<TValue, Err> {
     return new Result<TValue, Err>(value, "value");
   }
 
+  static Is(val :any): val is Result<any, any> {
+    return val instanceof Result;
+  }
+
+  static IsNot<T>(val :T | Result<any, any>): val is T {
+    return !this.Is( val );
+  } 
+
   isError(): this is Err {
     return this._isError;
-  }
-
-  private isFuncError<TErr>(err :Object): err is ((value :Err) => Err) | ((value :Err) => TErr) {
-    return this._isError && typeof err === "function"; 
-  }
-
-  private isFuncSuccess<TResult>(val :Object): val is ((value :Value) => TResult) {
-    return this._isSuccess && typeof val === "function";
   }
 
   isSuccess(): this is Value {
     return this._isSuccess;
   }
   
-  handle<TResult>( handler :((value: Value | undefined) => TResult)) :TResult {
-    return handler( this.value );
+  handle<TResult>(handler :((value :Value | Unknown, err :Err | Unknown ) => TResult)) :TResult {
+    const unKnownValue = this.value === undefined ? new Unknown() : this.value;
+    const unKnownErr = this.err || new Unknown();
+    return handler( unKnownValue, unKnownErr );
   }
 
   
-  
-  match<TValue, TErr, TResult extends IResult<TValue, TErr>>({ ifErr, ifOk }: IMatcherOption<Value, Err, TValue, TErr, TResult>): TResult {
+  match<TValue, TErr>({ onErr, onOk }: IMatcherOption<Value, Err, TValue, TErr, Result<TValue, Err>>): Result<TValue, TErr> {
 
-    if( ifErr === null ) throw new Error("Invalid err argument passed. err cannot be null.");
+    if( onErr === null ) throw new Error("Invalid err argument passed. err cannot be null.");
 
-    if( ifOk === null ) throw new Error("Invalid ok argument passed. ok cannot be null.");
+    if( onOk === null ) throw new Error("Invalid ok argument passed. ok cannot be null.");
 
-    if( this.isFuncError(ifErr) ) {
-      ifErr
-      const err = this.err as Err;
-      const dd = ifErr( err );
-      return Result.Err<TValue, TErr>( dd );
-    }
+    if( this.isFuncError(onErr) ) return Result.Err<TValue, TErr>( onErr( this.err as Err ));
 
-    else if( this.isError() ) return Result.Err<TValue, TErr>( ifErr );
+    else if( this.isError() ) return Result.Err<TValue, TErr>( onErr );
 
-    else if( this.isFuncSuccess( ifOk ) ) return this.flattenOk( ifOk );
+    else if( this.isFuncSuccess( onOk ) ) return this.flattenOk( onOk );
 
-    else if( this.isSuccess() ) return Result.Ok( ifOk );
+    else if( this.isSuccess() ) return Result.Ok( onOk );
 
     else throw new Error("Invalid arguments passed. Unable to propagate result.");
 
   }
   
-  propagate<TResult>(ok: OkArgument<Value, Err, TResult, Result<TResult, Err>>): Result<TResult, Err> {
+  onOk<TValue>(ok: OkArgument<Value, Err, TValue, Result<TValue, Err>>): Result<TValue, Err> {
 
     if( ok === null ) throw new Error("Invalid ok argument passed. ok cannot be null.");
     
@@ -94,40 +92,68 @@ export class Result<Value, Err> implements IResult<Value, Err> {
     else throw new Error("Invalid arguments passed. Unable to propagate result.");
     
   }
-  
-  getValue(): Value | undefined {
-    return this.value;
+
+  onErr<TErr>(err :ErrArgument<Value, Err, TErr, Result<Value, TErr>>) :Result<Value, TErr> {
+    
+    if( err === null ) throw new Error("Invalid err argument passed. err cannot be null");
+
+    if( this.isSuccess() ) return Result.Ok(this.value as Value);
+
+    else if( this.isFuncError( err ) ) return this.flattenErr( err );
+
+    else if( this.isError() ) return Result.Err( err );
+    
+    else throw new Error("Invalid arguments passed. Unable to propagate result.");
+
   }
-  
-  getError() {
-    return this.err;
+   
+  getErrOrDefault(defaultErr :Err) :Err {
+    if( isUnknown( this.err ) ) return defaultErr;
+    else return this.err;
   }
 
   getValueOrDefault(defaultValue :Value) :Value {
-    if( this.value === undefined ) return defaultValue;
+    if( isUnknown( this.value ) ) return defaultValue;
     else return this.value;
   }
 
-  private flattenOk<TResult, Err>( ok :((value: Value) => Result<TResult, Err>) | ((value: Value) => TResult)): Result<TResult, Err> {
+  merge() :Value | Err {
+    if( isKnown( this.value ) ) return this.value;
+    else if( isKnown( this.err ) ) return this.err;
+    else throw new RangeError("Unexpected entry. Niether value nor err is known");
+  }
+
+  private isFuncError<TErr>(err :Object): err is ((value :Err) => Err) | ((value :Err) => TErr) {
+    return this._isError && typeof err === "function"; 
+  }
+
+  private isFuncSuccess<TResult>(val :Object): val is ((value :Value) => TResult) {
+    return this._isSuccess && typeof val === "function";
+  }
+
+  private flattenOk<TValue, TErr>( ok :((value: Value) => Result<TValue, Err>) | ((value: Value) => TValue)): Result<TValue, TErr> {
     
     const flattenResult = ok( this.value as Value );
       
     if( flattenResult instanceof Result ) {
-      if( flattenResult.isError() ) return Result.Err( flattenResult.getError()! as Err );
-      return Result.Ok( flattenResult.value! as TResult );
+      if( flattenResult.isError() && isKnown(flattenResult.err) ) return Result.Err( flattenResult.err as unknown as TErr );
+      return Result.Ok( flattenResult.value as TValue );
     }
 
     return Result.Ok( flattenResult );
 
   }
 
-}
+  private flattenErr<TErr>( err :((err: Err) => Result<Value, TErr>) | ((err: Err) => TErr)) :Result<Value, TErr> {
+    
+    const flattenedErr = err( this.err as Err );
 
-function isSuccessHandlerFunc<TValue, TResult>(obj :Object | undefined ): obj is ((value: TValue | undefined) => TResult) {
-  if( !obj ) return false;
-  else return typeof obj === "function";
-}
+    if( flattenedErr instanceof Result ) {
+      if( flattenedErr.isSuccess() ) return Result.Ok( flattenedErr.value as Value );
+      else return Result.Err( flattenedErr.err as TErr );
+    }
 
-function returnParam<T,U>( param :U ) :T {
+    return Result.Err( flattenedErr );
+  }
 
 }
