@@ -1,7 +1,7 @@
 {
-  "name": "monets",
+  "name": "uncertainty",
   "version": "1.0.0",
-  "description": "A simple module that implements various important utility monads like Optionals and Results",
+  "description": "A simple module that implements various important utility monads like Results",
   "main": "index.js",
   "scripts": {
     "tsc": "./node_modules/.bin/tsc",
@@ -13,10 +13,8 @@
     "testEnvironment": "node"
   },
   "keywords": [
-    "Optionals in JavaScript",
     "Results in JavaScript",
-    "Either in JavaScript",
-    "Maybe in JavaScript"
+    "Either in JavaScript"
   ],
   "author": "michaelolof",
   "license": "ISC",
